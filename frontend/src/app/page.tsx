@@ -14,7 +14,7 @@ const Home: React.FC = () => {
 	const [streamingResponse, setStreamingResponse] = useState<string>('');
 	const [chats, setChats] = useState<Chat[]>([]);
 
-	const { sendMessage, lastMessage } = useWebSocketConnection('ws://localhost:5000', () => {
+	const { sendMessage, lastMessage } = useWebSocketConnection('ws://localhost:3000', () => {
 		console.log('WebSocket connection established');
 	});
 
