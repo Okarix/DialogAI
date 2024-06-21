@@ -1,25 +1,34 @@
-# Используем официальный образ Node.js
-FROM node:14
+FROM node:18 AS build
 
-# Установка рабочей директории внутри контейнера
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Копирование зависимостей приложения (package.json и package-lock.json)
+
 COPY package*.json ./
 
-# Установка зависимостей
+
 RUN npm install
 
-# Копирование остальных файлов приложения
+
 COPY . .
 
-# Определение переменных среды
-ENV PORT=5000
-ENV MONGODB_URI="mongodb+srv://admin:admin12345@cluster0.xn2zx35.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-ENV GEMINI_API_KEY="AIzaSyDNbl76RxVRzAYREolFyde7l7EwAlREKQI"
 
-# Открытие порта, который будет использоваться вашим приложением
-EXPOSE 5000
+RUN npm run build
 
-# Запуск приложения при старте контейнера
-CMD ["npm", "start"]
+
+FROM node:18-slim
+
+
+WORKDIR /app
+
+
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package*.json ./
+
+
+RUN npm install --only=production
+
+
+EXPOSE 3000
+
+
+CMD ["node", "./dist/index.js"]
