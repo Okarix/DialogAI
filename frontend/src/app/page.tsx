@@ -1,18 +1,21 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
+import Head from 'next/head';
+import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import useWebSocket from 'react-use-websocket';
+import { useWebSocketConnection } from '@/lib/hooks/useWebSocketConnection';
+import { Chat, fetchChats } from '../services/chatService';
 
-export default function Home() {
-	const [prompt, setPrompt] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
+const Home: React.FC = () => {
+	const [prompt, setPrompt] = useState<string>('');
+	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const [streamingResponse, setStreamingResponse] = useState<string>('');
+	const [chats, setChats] = useState<Chat[]>([]);
 
-	const { sendMessage, lastMessage } = useWebSocket('ws://localhost:5000', {
-		onOpen: () => console.log('WebSocket connection established'),
+	const { sendMessage, lastMessage } = useWebSocketConnection('ws://localhost:5000', () => {
+		console.log('WebSocket connection established');
 	});
 
 	useEffect(() => {
@@ -28,6 +31,18 @@ export default function Home() {
 		}
 	}, [lastMessage]);
 
+	useEffect(() => {
+		const fetchData = async () => {
+			try {
+				const fetchedChats = await fetchChats();
+				setChats(fetchedChats);
+			} catch (error) {
+				console.error('Failed to fetch chat history', error);
+			}
+		};
+		fetchData();
+	}, []);
+
 	const handleSubmit = () => {
 		setIsLoading(true);
 		setStreamingResponse('');
@@ -37,6 +52,9 @@ export default function Home() {
 
 	return (
 		<div className='flex flex-col w-full min-h-screen'>
+			<Head>
+				<title>DialogAI</title>
+			</Head>
 			<header className='bg-primary text-primary-foreground py-6 px-4 md:px-6'>
 				<h1 className='text-3xl font-bold'>DialogAI</h1>
 			</header>
@@ -70,7 +88,30 @@ export default function Home() {
 						</p>
 					</div>
 				)}
+				<div className='mt-12'>
+					<h2 className='text-xl font-semibold mb-4 text-center'>Chat History</h2>
+					<div className='space-y-4'>
+						{chats.map(chat => (
+							<div
+								key={chat._id}
+								className='p-4 border rounded-lg'
+							>
+								<p>
+									<strong>Prompt:</strong> {chat.userPrompt}
+								</p>
+								<p>
+									<strong>Response:</strong> <ReactMarkdown>{chat.response}</ReactMarkdown>
+								</p>
+								<p className='text-gray-500 text-sm'>
+									<em>{new Date(chat.createdAt).toLocaleString()}</em>
+								</p>
+							</div>
+						))}
+					</div>
+				</div>
 			</main>
 		</div>
 	);
-}
+};
+
+export default Home;
