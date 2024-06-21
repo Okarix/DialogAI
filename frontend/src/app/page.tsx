@@ -2,29 +2,37 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import useWebSocket from 'react-use-websocket';
 
 export default function Home() {
 	const [prompt, setPrompt] = useState('');
-	const [answer, setAnswer] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [streamingResponse, setStreamingResponse] = useState<string>('');
 
-	const handleSubmit = async () => {
-		setIsLoading(true);
-		try {
-			const req = await axios.post('http://localhost:5000/chat', {
-				message: prompt,
-			});
-			const response = req.data;
-			setAnswer(response);
-		} catch (error) {
-			console.error('Error fetching data:', error);
-			setAnswer('There was an error processing your request.');
-		} finally {
-			setIsLoading(false);
+	const { sendMessage, lastMessage } = useWebSocket('ws://localhost:5000', {
+		onOpen: () => console.log('WebSocket connection established'),
+	});
+
+	useEffect(() => {
+		if (lastMessage !== null) {
+			const { response, error } = JSON.parse(lastMessage.data);
+			if (response) {
+				setStreamingResponse(prev => prev + response);
+				setIsLoading(false);
+			} else if (error) {
+				console.error(error);
+				setIsLoading(false);
+			}
 		}
+	}, [lastMessage]);
+
+	const handleSubmit = () => {
+		setIsLoading(true);
+		setStreamingResponse('');
+		sendMessage(JSON.stringify({ message: prompt }));
+		setPrompt('');
 	};
 
 	return (
@@ -54,8 +62,14 @@ export default function Home() {
 				</div>
 				<div>
 					<h2 className='text-xl font-semibold mb-4 text-center'>Answer</h2>
-					{isLoading ? <p>Loading...</p> : answer.length === 0 ? <p className='text-center'>Enter your question</p> : <ReactMarkdown>{answer.response}</ReactMarkdown>}
 				</div>
+				{streamingResponse && (
+					<div className='mt-4'>
+						<p className='text-gray-800'>
+							<ReactMarkdown>{streamingResponse}</ReactMarkdown>
+						</p>
+					</div>
+				)}
 			</main>
 		</div>
 	);

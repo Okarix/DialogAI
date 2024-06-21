@@ -4,7 +4,7 @@ import { logger } from './logger';
 import http from 'http';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import cors from 'cors';
-import { config } from 'dotenv';
+import WebSocket from 'ws';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -21,19 +21,24 @@ const genAI = new GoogleGenerativeAI(`${API_KEY}`);
 
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-app.post('/chat', async (req, res) => {
-	const userPrompt = req.body.message;
+const wss = new WebSocket.Server({ server });
 
-	try {
-		const result = await model.generateContent(userPrompt);
-		const response = await result.response;
-		const text = response.text();
+wss.on('connection', ws => {
+	ws.on('message', async message => {
+		const userPrompt = JSON.parse(message).message;
 
-		res.json({ response: text });
-	} catch (error) {
-		console.error(error);
-		res.status(500).send('Error connecting to Gemini API');
-	}
+		try {
+			const result = await model.generateContentStream([userPrompt]);
+
+			for await (const chunk of result.stream) {
+				const chunkText = chunk.text();
+				ws.send(JSON.stringify({ response: chunkText }));
+			}
+		} catch (error) {
+			console.error(error);
+			ws.send(JSON.stringify({ error: 'Error connecting to Gemini API' }));
+		}
+	});
 });
 
 server.listen(PORT, () => {
